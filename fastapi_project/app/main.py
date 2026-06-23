@@ -4,4 +4,4 @@ app = FastAPI()
 
 @app.get("/")
 def root():
-    return {"message": "Smart File Vault API"}
+    return {"message": "Smart File Vault API"}  
