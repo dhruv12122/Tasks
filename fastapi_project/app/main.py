@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 import sqlite3
+import bcrypt
 
 app = FastAPI()
 
@@ -51,6 +52,12 @@ def register(user: UserRegister):
             "message": "User already exists"
         }
 
+    password_bytes = user.password.encode()
+    hashed_password = bcrypt.hashpw(
+        password_bytes,
+        bcrypt.gensalt()
+    ).decode()
+
     cursor.execute(
         """
         INSERT INTO users (name, email, password)
@@ -59,7 +66,7 @@ def register(user: UserRegister):
         (
             user.name,
             user.email,
-            user.password
+            hashed_password
         )
     )
 
@@ -69,16 +76,57 @@ def register(user: UserRegister):
         "message": "User registered successfully"
     }
 
+# Authentication
+class Login(BaseModel):
+    email: str
+    password: str
+
+@app.post("/login")
+def user_login(user: Login):
+    cursor.execute(
+        '''SELECT * FROM users
+           WHERE email = ?''',
+           (user.email,)
+    )
+    current_user = cursor.fetchone()
+
+    if not current_user:
+        return{
+            "message": "Invalid email or password"
+        }
+    
+    entered_password = user.password.encode()
+    stored_hash = current_user[3].encode()
+
+    if not bcrypt.checkpw(entered_password, stored_hash):
+        return {
+            "message": "Invalid password"
+        }
+
+    return {
+        "message": "Login successful",
+        "user": {
+            "id": current_user[0],
+            "name": current_user[1],
+            "email": current_user[2]
+        }
+    }
+
+
 # To get all users
 @app.get("/users")
 def get_users():
     cursor.execute("SELECT * FROM users")
     users = cursor.fetchall()
-    return {
-        "id": users[0],
-        "name": users[1],
-        "email": users[2]
-    }
+    results = []
+    results.append(
+        {
+            "id": users[0],
+            "name": users[1],
+            "email": users[2]
+        }
+    )
+    return results
 
 # To get a single user
 @app.get("/users/{user_id}")
