@@ -2,8 +2,25 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 import sqlite3
 import bcrypt
+from jose import jwt
+from datetime import datetime, timedelta
+import os
+from dotenv import load_dotenv
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi import Depends
+from jose import JWTError
+from fastapi import HTTPException, status
 
+load_dotenv()
 app = FastAPI()
+security = HTTPBearer()
+
+
+SECRET_KEY = os.getenv("SECRET_KEY")
+ALGORITHM = os.getenv("ALGORITHM")
+ACCESS_TOKEN_EXPIRE_MINUTES = int(
+    os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES")
+)
 
 conn = sqlite3.connect(
     "smart_file_vault.db",
@@ -76,6 +93,49 @@ def register(user: UserRegister):
         "message": "User registered successfully"
     }
 
+# JWT
+def create_access_token(data: dict):
+    payload = data.copy()
+    expire = datetime.utcnow() + timedelta(
+        minutes= ACCESS_TOKEN_EXPIRE_MINUTES
+    )
+    payload["exp"] = expire
+
+    token = jwt.encode(
+        payload,
+        SECRET_KEY,
+        algorithm=ALGORITHM
+    )
+    return token
+
+def verify_token(token: str):
+
+    try:
+        payload = jwt.decode(
+            token,
+            SECRET_KEY,
+            algorithms=[ALGORITHM]
+        )
+
+        return payload
+
+    except JWTError:
+
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token"
+        )
+
+@app.get("/profile")
+def profile(
+    credentials: HTTPAuthorizationCredentials = Depends(security)):
+    token = credentials.credentials
+
+    payload = verify_token(token)
+
+    user_id = payload["user_id"]
+    
+
 # Authentication
 class Login(BaseModel):
     email: str
@@ -103,13 +163,16 @@ def user_login(user: Login):
             "message": "Invalid password"
         }
 
-    return {
-        "message": "Login successful",
-        "user": {
-            "id": current_user[0],
-            "name": current_user[1],
+    access_toekn = create_access_token(
+        {
+            "user_id": current_user[0],
             "email": current_user[2]
         }
+    )
+
+    return {
+        "access_token": access_toekn,
+        "token_type": "bearer"
     }
 
 
@@ -143,11 +206,18 @@ def get_user(user_id: int):
             "message": "User not found"
         }
 
-    return {
-        "id": user[0],
-        "name": user[1],
-        "email": user[2]
-    }
+    results = []
+
+    for user in user:
+        results.append(
+            {
+                "id": user[0],
+                "name": user[1],
+                "email": user[2]
+            }
+        )
+    return results
+
 
 class UserUpdate(BaseModel):
     name: str
@@ -202,4 +272,10 @@ def delete_user(user_id: int):
     conn.commit()
     return {
         "message": "User deleted successfully"
+    }
+
+@app.get("/profile")
+def profile(credentials: HTTPAuthorizationCredentials = Depends(security)):
+     return {
+        "token": credentials.credentials
     }
