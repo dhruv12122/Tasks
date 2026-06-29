@@ -130,11 +130,30 @@ def verify_token(token: str):
 def profile(
     credentials: HTTPAuthorizationCredentials = Depends(security)):
     token = credentials.credentials
-
     payload = verify_token(token)
-
     user_id = payload["user_id"]
+
+    cursor.execute(
+        """
+        SELECT * FROM users
+        WHERE id = ?
+        """,
+        (user_id,)
+    )
     
+    user = cursor.fetchone()
+
+    if not user:
+        raise HTTPException(
+        status_code=404,
+        detail="User not found"
+        )
+    else:
+        return{
+            "id": user[0],
+            "name": user[1],
+            "email": user[2]
+        }
 
 # Authentication
 class Login(BaseModel):
