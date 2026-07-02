@@ -100,6 +100,7 @@ def create_access_token(data: dict):
         minutes= ACCESS_TOKEN_EXPIRE_MINUTES
     )
     payload["exp"] = expire
+    payload["type"] = "access"
 
     token = jwt.encode(
         payload,
@@ -107,6 +108,22 @@ def create_access_token(data: dict):
         algorithm=ALGORITHM
     )
     return token
+
+def create_refresh_token(data: dict):
+    payload = data.copy()
+    expire = datetime.utcnow() + timedelta(
+        days= os.getenv("REFRESH_TOKEN_EXPIRE_DAYS")
+    )
+    payload["exp"] = expire
+    payload["type"] = "refresh"
+
+    token = jwt.encode(
+        payload,
+        SECRET_KEY,
+        algorithm=ALGORITHM
+    )
+    return token
+
 
 def verify_token(token: str):
 
@@ -196,9 +213,16 @@ def user_login(user: Login):
             "email": current_user[2]
         }
     )
+    refresh_token = create_refresh_token(
+    {
+        "user_id": current_user[0],
+        "email": current_user[2]
+    }
+)
 
     return {
         "access_token": access_token,
+        "refresh_token": refresh_token,
         "token_type": "bearer"
     }
 
@@ -302,3 +326,41 @@ def delete_user(user_id: int):
     return {
         "message": "User deleted successfully"
     }
+
+@app.post("/refresh")
+def refresh(
+    credentials: HTTPAuthorizationCredentials = Depends(security)):
+    token = credentials.credentials
+    payload = verify_token(token)
+
+    if payload.get("type") != "refresh":
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid refresh token")
+    
+    user_id = payload["user_id"]
+
+    cursor.execute(
+    """
+    SELECT * FROM users
+    WHERE id = ?
+    """,
+    (user_id,))
+
+    user = cursor.fetchone()
+
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail="User not found")
+    
+    access_token = create_access_token(
+        {
+        "user_id": user[0],
+        "email": user[2]
+        })
+
+    return {
+    "message": "Access token refreshed successfully",
+    "access_token": access_token,
+    "token_type": "bearer"}
