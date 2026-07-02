@@ -119,6 +119,7 @@ def verify_token(token: str):
 
         return payload
 
+
     except JWTError:
 
         raise HTTPException(
@@ -126,11 +127,14 @@ def verify_token(token: str):
             detail="Invalid or expired token"
         )
 
-@app.get("/profile")
-def profile(
-    credentials: HTTPAuthorizationCredentials = Depends(security)):
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+
     token = credentials.credentials
+
     payload = verify_token(token)
+
     user_id = payload["user_id"]
 
     cursor.execute(
@@ -140,20 +144,24 @@ def profile(
         """,
         (user_id,)
     )
-    
+
     user = cursor.fetchone()
 
     if not user:
         raise HTTPException(
-        status_code=404,
-        detail="User not found"
+            status_code=404,
+            detail="User not found"
         )
-    else:
-        return{
-            "id": user[0],
-            "name": user[1],
-            "email": user[2]
-        }
+
+    return user
+
+@app.get("/profile")
+def profile(user = Depends(get_current_user)):    
+    return {
+        "id": user[0],
+        "name": user[1],
+        "email": user[2]
+    }
 
 # Authentication
 class Login(BaseModel):
@@ -182,7 +190,7 @@ def user_login(user: Login):
             "message": "Invalid password"
         }
 
-    access_toekn = create_access_token(
+    access_token = create_access_token(
         {
             "user_id": current_user[0],
             "email": current_user[2]
@@ -190,7 +198,7 @@ def user_login(user: Login):
     )
 
     return {
-        "access_token": access_toekn,
+        "access_token": access_token,
         "token_type": "bearer"
     }
 
@@ -201,33 +209,7 @@ def get_users():
     cursor.execute("SELECT * FROM users")
     users = cursor.fetchall()
     results = []
-    results.append(
-        {
-            "id": users[0],
-            "name": users[1],
-            "email": users[2]
-        }
-    )
-    return results
-
-# To get a single user
-@app.get("/users/{user_id}")
-def get_user(user_id: int):
-    cursor.execute(
-        "SELECT * FROM users WHERE id = ?",
-        (user_id,)
-    )
-
-    user = cursor.fetchone()
-
-    if not user:
-        return {
-            "message": "User not found"
-        }
-
-    results = []
-
-    for user in user:
+    for user in users:
         results.append(
             {
                 "id": user[0],
@@ -235,7 +217,35 @@ def get_user(user_id: int):
                 "email": user[2]
             }
         )
+
     return results
+
+
+# To get a single user
+@app.get("/users/{user_id}")
+def get_user(user_id: int):
+
+    cursor.execute(
+        """
+        SELECT * FROM users
+        WHERE id = ?
+        """,
+        (user_id,)
+    )
+
+    user = cursor.fetchone()
+
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail="User not found"
+        )
+
+    return {
+        "id": user[0],
+        "name": user[1],
+        "email": user[2]
+    }
 
 
 class UserUpdate(BaseModel):
@@ -291,10 +301,4 @@ def delete_user(user_id: int):
     conn.commit()
     return {
         "message": "User deleted successfully"
-    }
-
-@app.get("/profile")
-def profile(credentials: HTTPAuthorizationCredentials = Depends(security)):
-     return {
-        "token": credentials.credentials
     }
