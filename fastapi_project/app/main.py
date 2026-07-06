@@ -1,5 +1,4 @@
-from fastapi import FastAPI
-from fastapi import Request
+from fastapi import FastAPI, Request
 from pydantic import BaseModel
 import sqlite3
 import bcrypt
@@ -368,10 +367,18 @@ def refresh(
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
-    print("Doing something")
+    print("Before")
 
     response = await call_next(request)
 
+    print("After")
+
     return response
 
+@app.get("/test")
+def test(request: Request):
+    print("Inside Test")
 
+    return {
+        "message": "Middleware Working!"
+    }
