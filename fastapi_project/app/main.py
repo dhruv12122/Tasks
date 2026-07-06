@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi import Request
 from pydantic import BaseModel
 import sqlite3
 import bcrypt
@@ -364,3 +365,13 @@ def refresh(
     "message": "Access token refreshed successfully",
     "access_token": access_token,
     "token_type": "bearer"}
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    print("Doing something")
+
+    response = await call_next(request)
+
+    return response
+
+
