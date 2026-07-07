@@ -375,10 +375,12 @@ async def log_requests(request: Request, call_next):
 
     return response
 
-@app.get("/test")
-def test(request: Request):
-    print("Inside Test")
+# @app.get("/test")
+# def test(request: Request):
+#     print("Inside Test")
 
-    return {
-        "message": "Middleware Working!"
-    }
+#     return {
+#         "message": "Middleware Working!"
+#     }
+
+
