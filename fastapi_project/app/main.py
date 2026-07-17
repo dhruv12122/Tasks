@@ -1,3 +1,5 @@
+import time
+
 from fastapi import FastAPI, Request
 from pydantic import BaseModel
 import sqlite3
@@ -366,21 +368,10 @@ def refresh(
     "token_type": "bearer"}
 
 @app.middleware("http")
-async def log_requests(request: Request, call_next):
-    print("Before")
-
+async def log_requests(request, call_next):
+    start_time = time.time
     response = await call_next(request)
+    duration = time.time - start_time
 
-    print("After")
-
+    print( f"{request.method} {request.url.path} - {duration:.4f} sec")
     return response
-
-# @app.get("/test")
-# def test(request: Request):
-#     print("Inside Test")
-
-#     return {
-#         "message": "Middleware Working!"
-#     }
-
-
